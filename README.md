@@ -1,23 +1,60 @@
-# YDNS Python Updater Script
+# pydns-updater
 
-This repository contains a Python updater script for dynamic DNS hosts on *NIX-like environments. Run it periodically with cron (preferably every 15 minutes).
-
-The script uses the YDNS API v1 (dyn-compatible) and retrieves the current external IP address through the API.
+Update YDNS hosts using your external IP address, retrieved through the YDNS API.
 
 ## Installation
 
-Python 3 is required. There are no third-party dependencies.
+### Linux packages
 
-1. Check out the source code (`updater.py`).
-2. Place it into the desired location and make it executable (`chmod +x updater.py`).
-3. Configure the username, password, and hosts as described below.
-4. Run the script (either by single call or set up a cronjob to run it periodically)
+Download and extract the package artifact for a version tag from the repository's GitHub Actions page. Install the package for your distribution:
 
-## Configuration
+```bash
+# Debian / Ubuntu
+sudo apt install ./pydns-updater_*.deb
 
-Settings come from command-line arguments or `/etc/ydns-upater.conf`. Each argument takes precedence over the corresponding file setting. There are no built-in credential or host defaults.
+# Rocky Linux / Fedora
+sudo dnf install ./pydns-updater-*.rpm
+```
 
-Create `/etc/ydns-upater.conf` using this INI format:
+The package installs the `pydns-updater` command and an empty `/etc/ydns-upater.conf`. Edit that file with your YDNS API credentials and hosts before running. Local config changes are preserved during upgrades.
+
+### Python script
+
+Install Python 3.9 or newer and download `pydns-updater.py`. No third-party Python packages are needed.
+
+```bash
+python3 pydns-updater.py --help
+```
+
+To install it as a command on Linux:
+
+```bash
+sudo install -m 755 pydns-updater.py /usr/local/bin/pydns-updater
+```
+
+## Help
+
+```bash
+pydns-updater --help
+```
+
+| Option | Purpose |
+| --- | --- |
+| `-H`, `--host`, `--hosts HOST` | Hostname to update; repeat for multiple hosts. |
+| `-u`, `--username USERNAME` | YDNS API username. |
+| `-p`, `--password PASSWORD` | YDNS API password. |
+| `-v` | Show the current IP, server responses, and results. |
+| `-vv` | Also show config sources, cache comparisons, and update decisions. |
+| `-vvv` | Also show HTTP URLs, status codes, and response bodies. |
+| `--no-cache` | Force an API update without reading or writing the IP cache. |
+
+`--verbose` is equivalent to `-v` and can be repeated. Without verbosity options, normal execution is quiet. Passwords and authorization headers are not logged.
+
+## Examples
+
+### Use a config file
+
+Create or edit `/etc/ydns-upater.conf`:
 
 ```ini
 [ydns]
@@ -26,66 +63,37 @@ password = your-api-password
 hosts = first.ydns.eu second.ydns.eu
 ```
 
-Separate hosts with whitespace. Write values without surrounding quotes; password characters such as `%`, `#`, and `;` are treated literally. Keep the file readable only by the account running the updater (for example, mode `600`).
-
-Hosts supplied with `-H`, `--host`, `--hosts`, or the config file must be fully qualified DNS hostnames. Hostnames are lowercased, international names are converted to IDNA ASCII, and a final DNS dot is removed. Duplicate hosts are updated once. Paths, URLs, ports, IP addresses, whitespace within a hostname, and invalid or oversized DNS labels are rejected before any API or cache access.
-
-Run with the file settings:
+Use fully qualified hostnames separated by whitespace and values without surrounding quotes. Keep the file readable only by the account running the updater. Packages use root ownership and mode `600`:
 
 ```bash
-python3 updater.py -v
+sudo chmod 600 /etc/ydns-upater.conf
+sudo pydns-updater -v
 ```
 
-Or supply settings as arguments:
+### Supply settings as arguments
 
 ```bash
-python3 updater.py -u user@example.com -p your-api-password -H first.ydns.eu -H second.ydns.eu -v
+python3 pydns-updater.py \
+  -u user@example.com -p your-api-password \
+  -H first.ydns.eu -H second.ydns.eu -v
 ```
 
-Supplying any `-H`/`--hosts` arguments replaces the entire host list from the file. The file is not needed when all three settings are supplied as arguments. Missing settings or an unreadable or malformed required config file cause exit code `2` before any API calls. `-v`/`--verbose` enables logging, including each host's response body from YDNS.
+Arguments override the corresponding config settings. Supplying hosts replaces the entire configured host list. The config file is optional when all settings are supplied as arguments.
 
-Repeat `-v` to show more detail:
-
-- `-v`: current IP, YDNS responses, and update results.
-- `-vv`: also show where settings came from, the cache path and IP comparison, and decisions for each host.
-- `-vvv`: also show HTTP request URLs, timeout, status codes, and response bodies.
-
-Repeated `--verbose` options work the same way. Without a verbosity option, normal execution is quiet. Password values and authorization headers are not logged.
-
-## IP cache
-
-The script stores the last successfully updated IP in `ydns_last_ip_<sha256>` inside the temporary directory selected by Python's `tempfile.gettempdir()`. This directory depends on the operating system and its temporary-directory environment settings. The fixed-length filename is derived from the normalized host set; host input is never inserted into the path. Reordering hosts uses the same cache file.
-
-Old cache files with hostnames in their names are ignored. The next successful update creates a cache using the new filename.
-
-When the external IP matches the cache, the script skips the update request. Changes made directly on the YDNS website are not reflected in this local cache. To force an API update and see the server response, use:
+### Force an update and inspect the response
 
 ```bash
-python3 updater.py --no-cache -vvv
+sudo pydns-updater --no-cache -vvv
 ```
 
-`--no-cache` bypasses all cache reads and writes for that run. It updates the configured hosts through the API even when the external IP has not changed.
+Use this after changing a record on the YDNS website: the local IP cache does not track website changes.
 
-## Crontab Setup
+### Run every 15 minutes
 
-To run this script every 15 minutes using `crontab`, add the following line to your crontab list:
+Add this entry with `sudo crontab -e` when using the package's root-owned config:
 
-```bash
-*/15 * * * * /path/to/script/updater.py > /dev/null
+```cron
+*/15 * * * * /usr/bin/pydns-updater
 ```
 
-Although this works on most all implementations of `crontab`, for more portability use this instead:
-
-```bash
-0,15,30,45 * * * * /path/to/script/updater.py > /dev/null
-```
-
-**NOTE:** To gain access to the crontab list to edit and add entries, execute `crontab -e` at the terminal
-
-## Further notes
-
-The code is licensed under the GNU Public License, version 3.
-
-## Contribution
-
-If you like to contribute useful changes to the script, simply fork the project, apply your changes and make a pull request.
+For a manual Python installation, use `/usr/local/bin/pydns-updater` or absolute paths to both Python and the script instead.

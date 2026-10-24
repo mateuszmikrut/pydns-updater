@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update YDNS dynamic DNS hosts."""
+"""pydns-updater: update YDNS hosts using the current external IP."""
 
 import argparse
 import base64
@@ -104,7 +104,7 @@ def update_hosts(hosts, username, password, current_ip):
 
 def parse_args(argv=None):
 	parser = argparse.ArgumentParser(
-		description="YDNS updater",
+		description="pydns-updater: update YDNS hosts using the current external IP",
 		epilog=f"Settings not supplied as arguments are read from {CONFIG_FILE} ([ydns] section).",
 	)
 	parser.add_argument("-H", "--host", "--hosts", dest="hosts", action="append", metavar="HOST")

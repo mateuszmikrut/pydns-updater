@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/schema.json
+name: pydns-updater
+arch: all
+platform: linux
+version: ${PACKAGE_VERSION}
+release: ${PACKAGE_RELEASE}
+section: net
+priority: optional
+maintainer: pydns-updater contributors
+description: |
+  Update YDNS hosts using the current external IP address.
+  Supports configuration files, local IP caching, and diagnostic logging.
+license: GPL-3.0-or-later
+
+contents:
+  - src: ./pydns-updater.py
+    dst: /usr/bin/pydns-updater
+    file_info:
+      mode: 0755
+  - src: ./packaging/ydns-upater.conf
+    dst: /etc/ydns-upater.conf
+    type: config|noreplace
+    file_info:
+      mode: 0600
+  - src: ./README.md
+    dst: /usr/share/doc/pydns-updater/README.md
+    file_info:
+      mode: 0644
+  - src: ./LICENSE.txt
+    dst: /usr/share/doc/pydns-updater/copyright
+    file_info:
+      mode: 0644
+
+overrides:
+  deb:
+    depends:
+      - python3 (>= 3.9)
+      - ca-certificates
+  rpm:
+    depends:
+      - python3 >= 3.9
+      - ca-certificates

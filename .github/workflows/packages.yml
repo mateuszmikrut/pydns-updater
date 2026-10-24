@@ -1,0 +1,89 @@
+name: Build Linux packages
+
+"on":
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    if: github.ref_type == 'tag' && github.event.created && !github.event.deleted
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NFPM_VERSION: 2.44.0
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate semantic version tag
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "A semantic version tag in the form vX.Y.Z is required" >&2
+            exit 1
+          fi
+          printf 'PACKAGE_VERSION=%s\nPACKAGE_RELEASE=1\n' "${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          printf 'SOURCE_DATE_EPOCH=%s\n' "$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Check Python compatibility
+        run: |
+          python -m py_compile pydns-updater.py
+          python pydns-updater.py --help
+
+      - name: Install pinned nFPM
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p nfpm
+          cd nfpm
+          archive="nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+          release_url="https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}"
+          curl --fail --silent --show-error --location "$release_url/$archive" --output "$archive"
+          curl --fail --silent --show-error --location "$release_url/checksums.txt" --output checksums.txt
+          sha256sum --check --ignore-missing checksums.txt
+          tar -xzf "$archive" nfpm
+          printf '%s\n' "$PWD" >> "$GITHUB_PATH"
+
+      - name: Build DEB and RPM
+        run: |
+          mkdir -p dist
+          nfpm package --config packaging/nfpm.yaml --packager deb --target dist/
+          nfpm package --config packaging/nfpm.yaml --packager rpm --target dist/
+
+      - name: Verify DEB installation
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ./dist/*.deb
+          sudo bash packaging/check-install.sh deb
+
+      - name: Verify RPM installation
+        run: |
+          docker run --rm \
+            --volume "$PWD/dist:/packages:ro" \
+            --volume "$PWD/packaging:/checks:ro" \
+            rockylinux:9 bash -euc '
+              dnf install --assumeyes /packages/*.rpm
+              bash /checks/check-install.sh rpm
+            '
+
+      - name: Add package checksums
+        working-directory: dist
+        run: sha256sum ./*.deb ./*.rpm > SHA256SUMS
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: pydns-updater-${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_RELEASE }}
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
