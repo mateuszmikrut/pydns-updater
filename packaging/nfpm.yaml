@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://nfpm.goreleaser.com/schema.json
 name: pydns-updater
-arch: all
+arch: ${PACKAGE_ARCH}
 platform: linux
 version: ${PACKAGE_VERSION}
 release: ${PACKAGE_RELEASE}

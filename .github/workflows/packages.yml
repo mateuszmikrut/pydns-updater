@@ -10,10 +10,25 @@ permissions:
 jobs:
   packages:
     if: github.ref_type == 'tag' && github.event.created && !github.event.deleted
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            nfpm_arch: x86_64
+            rpm_arch: x86_64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            nfpm_arch: arm64
+            rpm_arch: aarch64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     env:
       NFPM_VERSION: 2.44.0
+      PACKAGE_ARCH: ${{ matrix.arch }}
+      NFPM_ARCH: ${{ matrix.nfpm_arch }}
+      RPM_ARCH: ${{ matrix.rpm_arch }}
     defaults:
       run:
         shell: bash
@@ -30,20 +45,22 @@ jobs:
           printf 'SOURCE_DATE_EPOCH=%s\n' "$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
+        if: matrix.arch == 'amd64'
         with:
           python-version: "3.9"
 
+      # ARM uses the runner's Python; both Rocky Linux 9 checks use Python 3.9.
       - name: Check Python compatibility
         run: |
-          python -m py_compile pydns-updater.py
-          python pydns-updater.py --help
+          python3 -m py_compile pydns-updater.py
+          python3 pydns-updater.py --help
 
       - name: Install pinned nFPM
         working-directory: ${{ runner.temp }}
         run: |
           mkdir -p nfpm
           cd nfpm
-          archive="nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz"
+          archive="nfpm_${NFPM_VERSION}_Linux_${NFPM_ARCH}.tar.gz"
           release_url="https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}"
           curl --fail --silent --show-error --location "$release_url/$archive" --output "$archive"
           curl --fail --silent --show-error --location "$release_url/checksums.txt" --output checksums.txt
@@ -54,8 +71,8 @@ jobs:
       - name: Build DEB and RPM
         run: |
           mkdir -p dist
-          nfpm package --config packaging/nfpm.yaml --packager deb --target dist/pydns-updater.deb
-          nfpm package --config packaging/nfpm.yaml --packager rpm --target dist/pydns-updater.rpm
+          nfpm package --config packaging/nfpm.yaml --packager deb --target "dist/pydns-updater_${PACKAGE_ARCH}.deb"
+          nfpm package --config packaging/nfpm.yaml --packager rpm --target "dist/pydns-updater.${RPM_ARCH}.rpm"
 
       - name: Verify DEB installation
         run: |
@@ -75,16 +92,16 @@ jobs:
 
       - name: Add package checksums
         working-directory: dist
-        run: sha256sum ./*.deb ./*.rpm > SHA256SUMS
+        run: sha256sum ./*.deb ./*.rpm > "SHA256SUMS-${PACKAGE_ARCH}"
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: pydns-updater-${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_RELEASE }}
+          name: pydns-updater-${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_RELEASE }}-${{ matrix.arch }}
           path: |
             dist/*.deb
             dist/*.rpm
-            dist/SHA256SUMS
+            dist/SHA256SUMS-*
           if-no-files-found: error
           retention-days: 30
 
@@ -104,7 +121,9 @@ jobs:
 
       - name: Verify package checksums
         working-directory: dist
-        run: sha256sum --check SHA256SUMS
+        run: |
+          sha256sum --check SHA256SUMS-amd64 SHA256SUMS-arm64
+          cat SHA256SUMS-amd64 SHA256SUMS-arm64 > SHA256SUMS
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -116,6 +135,8 @@ jobs:
           prerelease: false
           fail_on_unmatched_files: true
           files: |
-            dist/pydns-updater.deb
-            dist/pydns-updater.rpm
+            dist/pydns-updater_amd64.deb
+            dist/pydns-updater_arm64.deb
+            dist/pydns-updater.x86_64.rpm
+            dist/pydns-updater.aarch64.rpm
             dist/SHA256SUMS

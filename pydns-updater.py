@@ -110,20 +110,24 @@ def parse_args(argv=None):
 	parser.add_argument("-H", "--host", "--hosts", dest="hosts", action="append", metavar="HOST")
 	parser.add_argument("-u", "--username", dest="username", metavar="USERNAME")
 	parser.add_argument("-p", "--password", dest="password", metavar="PASSWORD")
-	parser.add_argument("-v", "--verbose", dest="verbose", action="count", default=0, help="increase verbosity: -v results, -vv decisions, -vvv HTTP details")
+	parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="override config verbosity: -v results, -vv decisions, -vvv HTTP details")
 	parser.add_argument("--no-cache", action="store_true", help="update through the API without reading or writing the IP cache")
 	args = parser.parse_args(argv)
 	args.setting_sources = {
 		name: "command line" if getattr(args, name) is not None else CONFIG_FILE
-		for name in ("username", "password", "hosts")
+		for name in ("username", "password", "hosts", "verbose")
 	}
-	if any(getattr(args, name) is None for name in ("username", "password", "hosts")):
+	requires_config = any(getattr(args, name) is None for name in ("username", "password", "hosts"))
+	if requires_config or args.verbose is None:
 		config = configparser.ConfigParser(interpolation=None)
 		try:
 			with open(CONFIG_FILE, encoding="utf-8") as config_file:
 				config.read_file(config_file)
 		except FileNotFoundError:
 			pass
+		except PermissionError:
+			if requires_config:
+				parser.error(f"Unable to read {CONFIG_FILE}: permission denied.")
 		except (OSError, UnicodeError, configparser.Error):
 			parser.error(f"Unable to read {CONFIG_FILE}; expected a readable INI file with a [ydns] section.")
 
@@ -133,6 +137,17 @@ def parse_args(argv=None):
 			args.password = config.get("ydns", "password", fallback=None)
 		if args.hosts is None:
 			args.hosts = config.get("ydns", "hosts", fallback="").split()
+		if args.verbose is None:
+			if config.has_option("ydns", "verbose"):
+				try:
+					args.verbose = config.getint("ydns", "verbose")
+				except ValueError:
+					parser.error(f"The verbose setting in {CONFIG_FILE} must be an integer from 0 to 3.")
+				if not 0 <= args.verbose <= 3:
+					parser.error(f"The verbose setting in {CONFIG_FILE} must be an integer from 0 to 3.")
+			else:
+				args.verbose = 0
+				args.setting_sources["verbose"] = "default (0)"
 
 	missing = [name for name in ("username", "password", "hosts") if not getattr(args, name)]
 	if args.hosts and any(not host.strip() for host in args.hosts):
@@ -159,10 +174,10 @@ def main():
 		format="[%(asctime)s] %(levelname)s: %(message)s",
 		datefmt="%Y/%m/%dT%H:%M:%S",
 	)
-	if all(source == "command line" for source in args.setting_sources.values()):
-		logger.debug("Configuration file skipped: all required settings came from command-line arguments")
-	else:
+	if CONFIG_FILE in args.setting_sources.values():
 		logger.debug("Loaded configuration from %s", CONFIG_FILE)
+	else:
+		logger.debug("Using command-line settings and defaults")
 	for name, source in args.setting_sources.items():
 		logger.debug("Setting %s comes from %s", name, source)
 	hosts = args.hosts

@@ -19,12 +19,12 @@ fi
 
 case "$1" in
   deb)
-    test "$(dpkg-query --show --showformat='${Architecture}' pydns-updater)" = all
+    test "$(dpkg-query --show --showformat='${Architecture}' pydns-updater)" = "$(dpkg --print-architecture)"
     config_files=$(dpkg-query --show --showformat='${Conffiles}' pydns-updater)
     [[ "$config_files" == *" /etc/ydns-upater.conf "* ]]
     ;;
   rpm)
-    test "$(rpm -q --queryformat '%{ARCH}' pydns-updater)" = noarch
+    test "$(rpm -q --queryformat '%{ARCH}' pydns-updater)" = "$(rpm --eval '%{_arch}')"
     config_files=$(rpm -q --queryformat '[%{FILENAMES} %{FILEFLAGS}\n]' pydns-updater)
     # RPM flags 1 (config) + 16 (noreplace) preserve locally edited settings.
     [[ "$config_files" == *"/etc/ydns-upater.conf 17"* ]]
