@@ -17,7 +17,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-CONFIG_FILE = "/etc/ydns-upater.conf"
+CONFIG_FILE = "/etc/pydns-updater.conf"
 API_URL = "https://ydns.io/api/v1"
 TRACE = 5
 logging.addLevelName(TRACE, "TRACE")

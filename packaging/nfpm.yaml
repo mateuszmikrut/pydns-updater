@@ -17,8 +17,8 @@ contents:
     dst: /usr/bin/pydns-updater
     file_info:
       mode: 0755
-  - src: ./packaging/ydns-upater.conf
-    dst: /etc/ydns-upater.conf
+  - src: ./packaging/pydns-updater.conf
+    dst: /etc/pydns-updater.conf
     type: config|noreplace
     file_info:
       mode: 0600

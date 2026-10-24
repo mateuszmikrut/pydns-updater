@@ -27,7 +27,7 @@ curl -fLO "https://github.com/mateuszmikrut/pydns-updater/releases/latest/downlo
 sudo dnf install "./pydns-updater.$(rpm --eval '%{_arch}').rpm"
 ```
 
-The package installs the `pydns-updater` command and an empty `/etc/ydns-upater.conf`. Edit that file with your YDNS API credentials and hosts before running. Local config changes are preserved during upgrades.
+The package installs the `pydns-updater` command and an empty `/etc/pydns-updater.conf`. Edit that file with your YDNS API credentials and hosts before running. Local config changes are preserved during upgrades.
 
 ### Manual install via Python script
 
@@ -65,7 +65,7 @@ pydns-updater --help
 
 ### Use a config file
 
-Create or edit `/etc/ydns-upater.conf`:
+Create or edit `/etc/pydns-updater.conf`:
 
 ```ini
 [ydns]
@@ -80,7 +80,7 @@ Set `verbose` to `0` for quiet operation, `1` for results, `2` for decisions, or
 Use fully qualified hostnames separated by whitespace and values without surrounding quotes. Keep the file readable only by the account running the updater. Packages use root ownership and mode `600`:
 
 ```bash
-sudo chmod 600 /etc/ydns-upater.conf
+sudo chmod 600 /etc/pydns-updater.conf
 sudo pydns-updater -v
 ```
 
