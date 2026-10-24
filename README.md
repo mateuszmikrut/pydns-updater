@@ -18,7 +18,7 @@ sudo dnf install ./pydns-updater-*.rpm
 
 The package installs the `pydns-updater` command and an empty `/etc/ydns-upater.conf`. Edit that file with your YDNS API credentials and hosts before running. Local config changes are preserved during upgrades.
 
-### Python script
+### Manual install via Python script
 
 Install Python 3.9 or newer and download `pydns-updater.py`. No third-party Python packages are needed.
 
@@ -73,27 +73,17 @@ sudo pydns-updater -v
 ### Supply settings as arguments
 
 ```bash
-python3 pydns-updater.py \
+pydns-updater \
   -u user@example.com -p your-api-password \
   -H first.ydns.eu -H second.ydns.eu -v
 ```
 
 Arguments override the corresponding config settings. Supplying hosts replaces the entire configured host list. The config file is optional when all settings are supplied as arguments.
 
-### Force an update and inspect the response
-
-```bash
-sudo pydns-updater --no-cache -vvv
-```
-
-Use this after changing a record on the YDNS website: the local IP cache does not track website changes.
-
-### Run every 15 minutes
+### Run every X minutes
 
 Add this entry with `sudo crontab -e` when using the package's root-owned config:
 
 ```cron
 */15 * * * * /usr/bin/pydns-updater
 ```
-
-For a manual Python installation, use `/usr/local/bin/pydns-updater` or absolute paths to both Python and the script instead.

@@ -2,7 +2,7 @@ name: Build Linux packages
 
 "on":
   push:
-    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+    tags: ["[0-9]+.[0-9]+.[0-9]+", "v[0-9]+.[0-9]+.[0-9]+"]
 
 permissions:
   contents: read
@@ -22,8 +22,8 @@ jobs:
 
       - name: Validate semantic version tag
         run: |
-          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "A semantic version tag in the form vX.Y.Z is required" >&2
+          if [[ "$GITHUB_REF_TYPE" != tag || ! "$GITHUB_REF_NAME" =~ ^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "A semantic version tag in the form X.Y.Z or vX.Y.Z is required" >&2
             exit 1
           fi
           printf 'PACKAGE_VERSION=%s\nPACKAGE_RELEASE=1\n' "${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
