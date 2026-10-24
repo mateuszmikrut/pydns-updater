@@ -6,14 +6,16 @@ Update YDNS hosts using your external IP address, retrieved through the YDNS API
 
 ### Linux packages
 
-Download and extract the package artifact for a version tag from the repository's GitHub Actions page. Install the package for your distribution:
+Download the latest [Debian package](https://github.com/mateuszmikrut/pydns-updater/releases/latest/download/pydns-updater.deb) or [RPM package](https://github.com/mateuszmikrut/pydns-updater/releases/latest/download/pydns-updater.rpm) from [GitHub Releases](https://github.com/mateuszmikrut/pydns-updater/releases/latest).
 
 ```bash
 # Debian / Ubuntu
-sudo apt install ./pydns-updater_*.deb
+curl -fLO https://github.com/mateuszmikrut/pydns-updater/releases/latest/download/pydns-updater.deb
+sudo apt install ./pydns-updater.deb
 
 # Rocky Linux / Fedora
-sudo dnf install ./pydns-updater-*.rpm
+curl -fLO https://github.com/mateuszmikrut/pydns-updater/releases/latest/download/pydns-updater.rpm
+sudo dnf install ./pydns-updater.rpm
 ```
 
 The package installs the `pydns-updater` command and an empty `/etc/ydns-upater.conf`. Edit that file with your YDNS API credentials and hosts before running. Local config changes are preserved during upgrades.

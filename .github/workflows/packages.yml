@@ -1,4 +1,4 @@
-name: Build Linux packages
+name: Build and release Linux packages
 
 "on":
   push:
@@ -54,8 +54,8 @@ jobs:
       - name: Build DEB and RPM
         run: |
           mkdir -p dist
-          nfpm package --config packaging/nfpm.yaml --packager deb --target dist/
-          nfpm package --config packaging/nfpm.yaml --packager rpm --target dist/
+          nfpm package --config packaging/nfpm.yaml --packager deb --target dist/pydns-updater.deb
+          nfpm package --config packaging/nfpm.yaml --packager rpm --target dist/pydns-updater.rpm
 
       - name: Verify DEB installation
         run: |
@@ -87,3 +87,35 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    needs: packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pydns-updater-*
+          merge-multiple: true
+          path: dist
+
+      - name: Verify package checksums
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: pydns-updater ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: |
+            dist/pydns-updater.deb
+            dist/pydns-updater.rpm
+            dist/SHA256SUMS
