@@ -36,3 +36,6 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
+
+# AI stuff
+test*.py
