@@ -18,27 +18,13 @@ These commands select the package for your system automatically:
 Debian / Ubuntu:
 
 ```bash
-(
-  set -e
-  pydns_arch=$(dpkg --print-architecture)
-  pydns_tmp=$(mktemp -d /tmp/pydns-updater.XXXXXX)
-  trap 'rm -rf -- "$pydns_tmp"' EXIT
-  chmod 755 "$pydns_tmp"
-  curl -fL "https://github.com/mateuszmikrut/pydns-updater/releases/latest/download/pydns-updater_${pydns_arch}.deb" \
-    -o "$pydns_tmp/pydns-updater.deb"
-  chmod 644 "$pydns_tmp/pydns-updater.deb"
-  sudo apt install "$pydns_tmp/pydns-updater.deb"
-)
-```
+# Debian / Ubuntu
+curl -fLO "https://github.com/mateuszmikrut/pydns-updater/releases/latest/download/pydns-updater_$(dpkg --print-architecture).deb" &&
+sudo apt install "./pydns-updater_$(dpkg --print-architecture).deb"
 
-The temporary directory and package are readable by APT's `_apt` user and are removed afterward.
-
-Rocky Linux / Fedora:
-
-```bash
-pydns_arch=$(rpm --eval '%{_arch}')
-curl -fLO "https://github.com/mateuszmikrut/pydns-updater/releases/latest/download/pydns-updater.${pydns_arch}.rpm" &&
-sudo dnf install "./pydns-updater.${pydns_arch}.rpm"
+# Rocky Linux / Fedora
+curl -fLO "https://github.com/mateuszmikrut/pydns-updater/releases/latest/download/pydns-updater.$(rpm --eval '%{_arch}').rpm" &&
+sudo dnf install "./pydns-updater.$(rpm --eval '%{_arch}').rpm"
 ```
 
 The package installs the `pydns-updater` command and an empty `/etc/ydns-upater.conf`. Edit that file with your YDNS API credentials and hosts before running. Local config changes are preserved during upgrades.
