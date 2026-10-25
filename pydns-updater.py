@@ -50,7 +50,7 @@ def get_cache_path(hosts):
 
 def request_text(url, username=None, password=None, *, accept_error_body=False):
 	request = Request(url)
-	logger.log(TRACE, "HTTP GET %s (timeout: 30 seconds)", url)
+	logger.log(TRACE, "HTTP GET %s (timeout: 30s)", url)
 	if username is not None and password is not None:
 		credentials = f"{username}:{password}".encode()
 		encoded = base64.b64encode(credentials).decode()
@@ -59,17 +59,17 @@ def request_text(url, username=None, password=None, *, accept_error_body=False):
 		with urlopen(request, timeout=30) as response:
 			logger.log(TRACE, "HTTP status: %s", response.status)
 			body = response.read().decode().strip()
-			logger.log(TRACE, "HTTP response body: %r", body)
+			logger.log(TRACE, "HTTP body: %r", body)
 			return body
 	except HTTPError as error:
 		with error:
 			logger.log(TRACE, "HTTP status: %s", error.code)
 			if accept_error_body:
 				body = error.read().decode().strip()
-				logger.log(TRACE, "HTTP response body: %r", body)
-				logger.debug("Using HTTP error response body to determine the YDNS update result")
+				logger.log(TRACE, "HTTP body: %r", body)
+				logger.debug("Checking YDNS status in HTTP error body")
 				return body
-			logger.debug("IP lookup failed with HTTP status %s", error.code)
+			logger.debug("IP lookup failed: HTTP %s", error.code)
 			return ""
 	except (URLError, TimeoutError, OSError) as error:
 		logger.debug("Request failed for %s: %s", url, error)
@@ -77,28 +77,28 @@ def request_text(url, username=None, password=None, *, accept_error_body=False):
 
 
 def get_current_ip():
-	logger.debug("Retrieving the external IP from YDNS")
+	logger.debug("Fetching IP from YDNS")
 	return request_text(f"{API_URL}/ip")
 
 
 def update_hosts(hosts, username, password, current_ip):
 	status = "nochg"
 	for index, host in enumerate(hosts, start=1):
-		logger.debug("Updating host %s (%s/%s) to %s", host, index, len(hosts), current_ip)
+		logger.debug("Updating %s (%s/%s): %s", host, index, len(hosts), current_ip)
 		query = urlencode({"host": host, "ip": current_ip})
 		result = request_text(
 			f"{API_URL}/update/?{query}", username, password, accept_error_body=True
 		)
-		logger.info("YDNS response for %s: %s", host, result)
+		logger.info("YDNS %s: %s", host, result)
 		if result.startswith("good"):
-			logger.debug("Host %s: YDNS accepted the new IP", host)
+			logger.debug("%s: IP accepted", host)
 			status = "good"
 		elif result.startswith("nochg"):
-			logger.debug("Host %s: YDNS already has this IP", host)
+			logger.debug("%s: IP unchanged at YDNS", host)
 		else:
-			logger.debug("Stopping host updates after failure for %s; the cache will not be written", host)
+			logger.debug("Failed at %s; updates stopped, cache unchanged", host)
 			return result
-	logger.debug("All %s host updates succeeded; combined result: %s", len(hosts), status)
+	logger.debug("All %s hosts OK: %s", len(hosts), status)
 	return status
 
 
@@ -171,66 +171,65 @@ def main():
 	args = parse_args()
 	logging.basicConfig(
 		level=(logging.CRITICAL + 1, logging.INFO, logging.DEBUG, TRACE)[min(args.verbose, 3)],
-		format="[%(asctime)s] %(levelname)s: %(message)s",
-		datefmt="%Y/%m/%dT%H:%M:%S",
+		format="%(levelname)s: %(message)s",
 	)
 	if CONFIG_FILE in args.setting_sources.values():
-		logger.debug("Loaded configuration from %s", CONFIG_FILE)
+		logger.debug("Config: %s", CONFIG_FILE)
 	else:
-		logger.debug("Using command-line settings and defaults")
+		logger.debug("Using CLI settings and defaults")
 	for name, source in args.setting_sources.items():
-		logger.debug("Setting %s comes from %s", name, source)
+		logger.debug("%s source: %s", name, source)
 	hosts = args.hosts
-	logger.debug("Configured hosts: %s; cache: %s", " ".join(hosts), "disabled" if args.no_cache else "enabled")
+	logger.debug("Hosts: %s; cache: %s", " ".join(hosts), "disabled" if args.no_cache else "enabled")
 	current_ip = get_current_ip()
 
 	if not current_ip:
-		logger.error("Error: Unable to retrieve current public IP address.")
+		logger.error("External IP lookup failed")
 		return 92
 
 	logger.info("Current IP: %s", current_ip)
 	if not args.no_cache:
 		last_ip_file = get_cache_path(hosts)
-		logger.debug("Reading IP cache: %s", last_ip_file)
+		logger.debug("Reading cache: %s", last_ip_file)
 		try:
 			with open(last_ip_file, encoding="utf-8") as cache:
 				last_ip = cache.readline().strip()
 		except FileNotFoundError:
-			logger.debug("No IP cache file found; an update is required")
+			logger.debug("Cache missing; update required")
 			last_ip = ""
 
-		logger.debug("Comparing external IP %r with cached IP %r", current_ip, last_ip)
+		logger.debug("External IP: %r; cached: %r", current_ip, last_ip)
 		if current_ip == last_ip:
-			logger.info("Skipping YDNS update for %s: external IP matches the local cache", " ".join(hosts))
+			logger.info("Skipped %s: IP matches cache", " ".join(hosts))
 			return 0
-		logger.debug("External IP differs from the local cache; contacting YDNS")
+		logger.debug("Cache mismatch; updating YDNS")
 	else:
-		logger.info("IP cache disabled; contacting YDNS for an update.")
+		logger.info("Cache disabled; updating YDNS")
 
 	result = update_hosts(hosts, args.username, args.password, current_ip)
 	if result.startswith("badauth"):
 		logger.error(
-			"YDNS host update failed: %s (authentication failed)",
+			"%s: authentication failed",
 			" ".join(hosts),
 		)
 		return 90
 	if result.startswith("nohost"):
-		logger.error("YDNS hostrecord %s does not exist.", " ".join(hosts))
+		logger.error("%s: host not found", " ".join(hosts))
 		return 91
 	if result.startswith(("good", "nochg")):
 		if result.startswith("good"):
-			logger.info("YDNS host updated successfully: %s (%s)", " ".join(hosts), current_ip)
+			logger.info("Updated %s to %s", " ".join(hosts), current_ip)
 		else:
-			logger.info("YDNS entry unchanged.")
+			logger.info("YDNS IP unchanged")
 		if not args.no_cache:
 			with open(last_ip_file, "w", encoding="utf-8") as cache:
 				cache.write(current_ip + "\n")
-			logger.debug("Saved IP %s to cache: %s", current_ip, last_ip_file)
+			logger.debug("Cached %s in %s", current_ip, last_ip_file)
 		else:
-			logger.debug("Skipping cache write because --no-cache is enabled")
+			logger.debug("Cache write skipped (--no-cache)")
 		return 0
 
-	logger.error("YDNS host update failed: %s (%s)", " ".join(hosts), result)
+	logger.error("Update failed for %s: %s", " ".join(hosts), result)
 	return 91
 
 
